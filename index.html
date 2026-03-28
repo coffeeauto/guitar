@@ -650,6 +650,7 @@
       circleWrap.classList.remove('visible');
       buildNoteButtons();
     }
+    syncQualityButtons();
   }
 
   // ── Build UI ────────────────────────────────────────────────────────────────
@@ -665,6 +666,13 @@
     btn.addEventListener('click', () => { selQuality = q; refreshButtons(); updateCircle(); render(true); });
     qualityGrid.appendChild(btn);
   });
+
+  function syncQualityButtons() {
+    document.querySelectorAll('.quality-btn').forEach(b => {
+      const hide = displayMode === 'circle' && (b.dataset.q === 'maj' || b.dataset.q === 'm');
+      b.style.display = hide ? 'none' : '';
+    });
+  }
 
   document.getElementById('chromBtn') .addEventListener('click', () => setDisplayMode('chrom'));
   document.getElementById('cofBtn')   .addEventListener('click', () => setDisplayMode('cof'));
