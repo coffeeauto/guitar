@@ -28,8 +28,35 @@
     .subtitle {
       color: #888;
       font-size: 0.82rem;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
       letter-spacing: 0.04em;
+    }
+
+    /* Order toggle (segmented control) */
+    .order-toggle {
+      display: flex;
+      background: #e2e2e2;
+      border-radius: 9px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 18px;
+    }
+    .order-btn {
+      background: transparent;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .order-btn.active {
+      background: #fff;
+      color: #222;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.13);
     }
 
     /* Note buttons */
@@ -176,6 +203,11 @@
   <h1>6弦ギター コードチャート</h1>
   <p class="subtitle">チューニング: E A D G B e (低→高)</p>
 
+  <div class="order-toggle">
+    <button class="order-btn active" id="chromBtn">半音順</button>
+    <button class="order-btn"        id="cofBtn">五度圏</button>
+  </div>
+
   <div class="note-grid" id="noteGrid"></div>
   <div class="quality-grid" id="qualityGrid"></div>
 
@@ -187,6 +219,20 @@
   // ── Constants ──────────────────────────────────────────────────────────────
   const NOTES    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const N_LABELS = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+
+  // Note orders
+  const CHROM_ORDER = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const COF_ORDER   = ['C','G','D','A','E','B','F#','C#','G#','D#','A#','F'];
+
+  // Button labels per order (COF flat side uses flat names)
+  const CHROM_BTN_LABELS = {
+    C:'C', 'C#':'C♯', D:'D', 'D#':'D♯', E:'E', F:'F',
+    'F#':'F♯', G:'G', 'G#':'G♯', A:'A', 'A#':'A♯', B:'B',
+  };
+  const COF_BTN_LABELS = {
+    C:'C', G:'G', D:'D', A:'A', E:'E', B:'B',
+    'F#':'F♯', 'C#':'D♭', 'G#':'A♭', 'D#':'E♭', 'A#':'B♭', F:'F',
+  };
 
   const QUALITIES = ['maj','m','7','m7','maj7','aug','dim'];
   const Q_LABELS  = {maj:'Major', m:'Minor', '7':'7th', m7:'m7', maj7:'maj7', aug:'aug', dim:'dim'};
@@ -440,7 +486,7 @@
   }
 
   // ── State & render ──────────────────────────────────────────────────────────
-  let selNote = 'C', selQuality = 'maj';
+  let selNote = 'C', selQuality = 'maj', isCOF = false;
 
   function render(autoPlay = false) {
     const chord    = buildChord(selNote, selQuality);
@@ -472,26 +518,54 @@
       b.classList.toggle('active', b.dataset.q === selQuality));
   }
 
+  // ── Build note buttons (called on init & order switch) ──────────────────────
+  function buildNoteButtons() {
+    const grid   = document.getElementById('noteGrid');
+    const order  = isCOF ? COF_ORDER : CHROM_ORDER;
+    const labels = isCOF ? COF_BTN_LABELS : CHROM_BTN_LABELS;
+    grid.innerHTML = '';
+    order.forEach(n => {
+      const btn = document.createElement('button');
+      btn.className    = 'note-btn' + (n === selNote ? ' active' : '');
+      btn.dataset.note = n;
+      btn.innerHTML    = labels[n]
+        .replace('♯', '<span style="font-size:0.8em">♯</span>')
+        .replace('♭', '<span style="font-size:0.8em">♭</span>');
+      btn.addEventListener('click', () => { selNote = n; refreshButtons(); render(true); });
+      grid.appendChild(btn);
+    });
+  }
+
   // ── Build UI ────────────────────────────────────────────────────────────────
-  const noteGrid    = document.getElementById('noteGrid');
   const qualityGrid = document.getElementById('qualityGrid');
 
-  NOTES.forEach((n, i) => {
-    const btn = document.createElement('button');
-    btn.className   = 'note-btn';
-    btn.dataset.note = n;
-    btn.innerHTML   = N_LABELS[i].replace('♯', '<span style="font-size:0.8em">♯</span>');
-    btn.addEventListener('click', () => { selNote = n; refreshButtons(); render(true); });
-    noteGrid.appendChild(btn);
-  });
+  buildNoteButtons();
 
   QUALITIES.forEach(q => {
     const btn = document.createElement('button');
-    btn.className  = 'quality-btn';
-    btn.dataset.q  = q;
+    btn.className   = 'quality-btn';
+    btn.dataset.q   = q;
     btn.textContent = Q_LABELS[q];
     btn.addEventListener('click', () => { selQuality = q; refreshButtons(); render(true); });
     qualityGrid.appendChild(btn);
+  });
+
+  // Order toggle
+  document.getElementById('chromBtn').addEventListener('click', () => {
+    if (isCOF) {
+      isCOF = false;
+      document.getElementById('chromBtn').classList.add('active');
+      document.getElementById('cofBtn').classList.remove('active');
+      buildNoteButtons();
+    }
+  });
+  document.getElementById('cofBtn').addEventListener('click', () => {
+    if (!isCOF) {
+      isCOF = true;
+      document.getElementById('cofBtn').classList.add('active');
+      document.getElementById('chromBtn').classList.remove('active');
+      buildNoteButtons();
+    }
   });
 
   // Initial display (no auto-play on load)
