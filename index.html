@@ -197,6 +197,15 @@
     .play-btn:hover  { background: #3a6fc4; transform: scale(1.04); }
     .play-btn:active { transform: scale(0.96); }
     .play-btn.playing { background: #e07b3a; }
+
+    /* Circle of fifths visual */
+    .circle-wrap {
+      display: none;
+      margin-bottom: 16px;
+      touch-action: manipulation;
+    }
+    .circle-wrap.visible { display: block; }
+    .circle-wrap svg { display: block; margin: 0 auto; }
   </style>
 </head>
 <body>
@@ -206,9 +215,11 @@
   <div class="order-toggle">
     <button class="order-btn active" id="chromBtn">半音順</button>
     <button class="order-btn"        id="cofBtn">五度圏</button>
+    <button class="order-btn"        id="circleBtn">サークル</button>
   </div>
 
-  <div class="note-grid" id="noteGrid"></div>
+  <div class="note-grid"  id="noteGrid"></div>
+  <div class="circle-wrap" id="circleWrap"></div>
   <div class="quality-grid" id="qualityGrid"></div>
 
   <div class="card" id="card">
@@ -485,8 +496,94 @@
     }
   }
 
+  // ── Circle of Fifths SVG builder ────────────────────────────────────────────
+  // Positions (clockwise from 12 o'clock)
+  const COF_MAJOR_NOTES  = ['C','G','D','A','E','B','F#','C#','G#','D#','A#','F'];
+  const COF_MINOR_NOTES  = ['A','E','B','F#','C#','G#','D#','A#','F','C','G','D'];
+  // Display labels (flat names for the flat side)
+  const COF_MAJ_LABELS = ['C','G','D','A','E','B','F♯/G♭','D♭','A♭','E♭','B♭','F'];
+  const COF_MIN_LABELS = ['Am','Em','Bm','F♯m','C♯m','G♯m','E♭m','B♭m','Fm','Cm','Gm','Dm'];
+
+  function arcSeg(cx, cy, r1, r2, a1, a2) {
+    const [c1,s1,c2,s2] = [Math.cos(a1),Math.sin(a1),Math.cos(a2),Math.sin(a2)];
+    return [
+      `M${(cx+r2*c1).toFixed(2)},${(cy+r2*s1).toFixed(2)}`,
+      `A${r2},${r2},0,0,1,${(cx+r2*c2).toFixed(2)},${(cy+r2*s2).toFixed(2)}`,
+      `L${(cx+r1*c2).toFixed(2)},${(cy+r1*s2).toFixed(2)}`,
+      `A${r1},${r1},0,0,0,${(cx+r1*c1).toFixed(2)},${(cy+r1*s1).toFixed(2)}`,
+      'Z'
+    ].join(' ');
+  }
+
+  function buildCircleSVG() {
+    const SZ=310, cx=155, cy=155;
+    const R_OUT=148, R_MID=98, R_IN=54, GAP=0.038;
+    const DEG = Math.PI/180;
+    const p = [`<svg width="${SZ}" height="${SZ}" viewBox="0 0 ${SZ} ${SZ}">`];
+
+    // Centre hole
+    p.push(`<circle cx="${cx}" cy="${cy}" r="${R_IN-1}" fill="#f5f5f5" stroke="#ddd" stroke-width="1.5"/>`);
+    p.push(`<text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#bbb" font-size="11" font-family="sans-serif">5度圏</text>`);
+
+    for (let i = 0; i < 12; i++) {
+      const base = (i*30 - 90) * DEG;
+      const a1   = base + GAP, a2 = base + 30*DEG - GAP;
+      const mid  = base + 15*DEG;
+
+      const majNote = COF_MAJOR_NOTES[i];
+      const minNote = COF_MINOR_NOTES[i];
+      const majSel  = majNote === selNote && selQuality !== 'm';
+      const minSel  = minNote === selNote && selQuality === 'm';
+
+      // Outer segment (major)
+      const majFill = majSel ? '#4a7fd4' : '#e8eaf6';
+      const majTxt  = majSel ? '#fff'    : '#333';
+      p.push(`<path d="${arcSeg(cx,cy,R_MID,R_OUT,a1,a2)}" fill="${majFill}" stroke="#f0f0f0" stroke-width="2" style="cursor:pointer" onclick="cofClick('${majNote}','major')"/>`);
+
+      // Inner segment (minor)
+      const minFill = minSel ? '#e07b3a' : '#f5ede8';
+      const minTxt  = minSel ? '#fff'    : '#777';
+      p.push(`<path d="${arcSeg(cx,cy,R_IN,R_MID,a1,a2)}" fill="${minFill}" stroke="#f0f0f0" stroke-width="2" style="cursor:pointer" onclick="cofClick('${minNote}','minor')"/>`);
+
+      // Major label
+      const mlr = (R_MID+R_OUT)/2;
+      const mlx = (cx+mlr*Math.cos(mid)).toFixed(1);
+      const mly = (cy+mlr*Math.sin(mid)).toFixed(1);
+      const majLbl = COF_MAJ_LABELS[i];
+      if (majLbl.includes('/')) {
+        const [top,bot] = majLbl.split('/');
+        p.push(`<text x="${mlx}" y="${mly}" text-anchor="middle" dominant-baseline="middle" fill="${majTxt}" font-size="11" font-weight="700" font-family="sans-serif" pointer-events="none"><tspan x="${mlx}" dy="-6">${top}</tspan><tspan x="${mlx}" dy="13">${bot}</tspan></text>`);
+      } else {
+        p.push(`<text x="${mlx}" y="${mly}" text-anchor="middle" dominant-baseline="middle" fill="${majTxt}" font-size="14" font-weight="700" font-family="sans-serif" pointer-events="none">${majLbl}</text>`);
+      }
+
+      // Minor label
+      const inr = (R_IN+R_MID)/2;
+      const inx = (cx+inr*Math.cos(mid)).toFixed(1);
+      const iny = (cy+inr*Math.sin(mid)).toFixed(1);
+      p.push(`<text x="${inx}" y="${iny}" text-anchor="middle" dominant-baseline="middle" fill="${minTxt}" font-size="10" font-weight="600" font-family="sans-serif" pointer-events="none">${COF_MIN_LABELS[i]}</text>`);
+    }
+
+    p.push('</svg>');
+    return p.join('');
+  }
+
+  // Called by SVG onclick (must be global)
+  function cofClick(note, type) {
+    selNote = note;
+    if (type === 'minor') selQuality = 'm';
+    refreshButtons();
+    updateCircle();
+    render(true);
+  }
+
+  function updateCircle() {
+    const wrap = document.getElementById('circleWrap');
+    if (displayMode === 'circle') wrap.innerHTML = buildCircleSVG();
+  }
+
   // ── State & render ──────────────────────────────────────────────────────────
-  let selNote = 'C', selQuality = 'maj', isCOF = false;
+  let selNote = 'C', selQuality = 'maj', displayMode = 'chrom';
 
   function render(autoPlay = false) {
     const chord    = buildChord(selNote, selQuality);
@@ -503,11 +600,9 @@
         : '赤丸の数字 = 指番号 (1=人差指 2=中指 3=薬指 4=小指)'}</p>
       <button class="play-btn" id="playBtn">&#9654; 再生</button>
     `;
-
     document.getElementById('playBtn').addEventListener('click', (e) => {
       playChordAudio(chord, e.currentTarget);
     });
-
     if (autoPlay) playChordAudio(chord, document.getElementById('playBtn'));
   }
 
@@ -518,11 +613,11 @@
       b.classList.toggle('active', b.dataset.q === selQuality));
   }
 
-  // ── Build note buttons (called on init & order switch) ──────────────────────
+  // ── Build note buttons ──────────────────────────────────────────────────────
   function buildNoteButtons() {
     const grid   = document.getElementById('noteGrid');
-    const order  = isCOF ? COF_ORDER : CHROM_ORDER;
-    const labels = isCOF ? COF_BTN_LABELS : CHROM_BTN_LABELS;
+    const order  = displayMode === 'cof' ? COF_ORDER : CHROM_ORDER;
+    const labels = displayMode === 'cof' ? COF_BTN_LABELS : CHROM_BTN_LABELS;
     grid.innerHTML = '';
     order.forEach(n => {
       const btn = document.createElement('button');
@@ -536,6 +631,27 @@
     });
   }
 
+  function setDisplayMode(mode) {
+    displayMode = mode;
+    ['chromBtn','cofBtn','circleBtn'].forEach(id => {
+      document.getElementById(id).classList.toggle('active',
+        (id === 'chromBtn' && mode === 'chrom') ||
+        (id === 'cofBtn'   && mode === 'cof')   ||
+        (id === 'circleBtn'&& mode === 'circle'));
+    });
+    const noteGrid   = document.getElementById('noteGrid');
+    const circleWrap = document.getElementById('circleWrap');
+    if (mode === 'circle') {
+      noteGrid.style.display   = 'none';
+      circleWrap.classList.add('visible');
+      updateCircle();
+    } else {
+      noteGrid.style.display   = '';
+      circleWrap.classList.remove('visible');
+      buildNoteButtons();
+    }
+  }
+
   // ── Build UI ────────────────────────────────────────────────────────────────
   const qualityGrid = document.getElementById('qualityGrid');
 
@@ -546,29 +662,15 @@
     btn.className   = 'quality-btn';
     btn.dataset.q   = q;
     btn.textContent = Q_LABELS[q];
-    btn.addEventListener('click', () => { selQuality = q; refreshButtons(); render(true); });
+    btn.addEventListener('click', () => { selQuality = q; refreshButtons(); updateCircle(); render(true); });
     qualityGrid.appendChild(btn);
   });
 
-  // Order toggle
-  document.getElementById('chromBtn').addEventListener('click', () => {
-    if (isCOF) {
-      isCOF = false;
-      document.getElementById('chromBtn').classList.add('active');
-      document.getElementById('cofBtn').classList.remove('active');
-      buildNoteButtons();
-    }
-  });
-  document.getElementById('cofBtn').addEventListener('click', () => {
-    if (!isCOF) {
-      isCOF = true;
-      document.getElementById('cofBtn').classList.add('active');
-      document.getElementById('chromBtn').classList.remove('active');
-      buildNoteButtons();
-    }
-  });
+  document.getElementById('chromBtn') .addEventListener('click', () => setDisplayMode('chrom'));
+  document.getElementById('cofBtn')   .addEventListener('click', () => setDisplayMode('cof'));
+  document.getElementById('circleBtn').addEventListener('click', () => setDisplayMode('circle'));
 
-  // Initial display (no auto-play on load)
+  // Initial display
   refreshButtons();
   render(false);
   </script>
