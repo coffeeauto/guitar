@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>6弦ギター コードチャート</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f0f0;
+      color: #2c2c2c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 0.82rem;
+      margin-bottom: 24px;
+      letter-spacing: 0.04em;
+    }
+
+    /* Note buttons */
+    .note-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 7px;
+      max-width: 440px;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 440px) {
+      .note-grid { grid-template-columns: repeat(4, 1fr); }
+      .quality-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .note-btn {
+      background: #fff;
+      border: 1px solid #d0d0d0;
+      color: #444;
+      padding: 9px 2px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.2;
+      transition: background 0.1s, color 0.1s, border-color 0.1s, transform 0.1s;
+    }
+
+    .note-btn:hover {
+      background: #f5f5f5;
+      color: #111;
+      border-color: #4a7fd4;
+      transform: translateY(-1px);
+    }
+
+    .note-btn.active {
+      background: #4a7fd4;
+      border-color: #3a6fc4;
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Quality buttons */
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+      max-width: 440px;
+      width: 100%;
+      margin-bottom: 26px;
+    }
+
+    .quality-btn {
+      background: #fff;
+      border: 1px solid #d0d0d0;
+      color: #555;
+      padding: 8px 2px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: background 0.1s, color 0.1s, border-color 0.1s, transform 0.1s;
+    }
+
+    .quality-btn:hover {
+      background: #f5f5f5;
+      color: #111;
+      border-color: #e07b3a;
+      transform: translateY(-1px);
+    }
+
+    .quality-btn.active {
+      background: #e07b3a;
+      border-color: #c96a2a;
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border: 1px solid #d8d8d8;
+      border-radius: 20px;
+      padding: 28px 28px 20px;
+      text-align: center;
+      min-width: 220px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+
+    .chord-name {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #4a7fd4;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .chord-notes {
+      color: #999;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 20px;
+    }
+
+    .placeholder {
+      color: #ccc;
+      font-size: 0.95rem;
+      padding: 28px 16px;
+    }
+
+    svg { display: block; margin: 0 auto; }
+
+    .fingering-note {
+      margin-top: 14px;
+      font-size: 0.72rem;
+      color: #bbb;
+      letter-spacing: 0.03em;
+    }
+  </style>
+</head>
+<body>
+  <h1>6弦ギター コードチャート</h1>
+  <p class="subtitle">チューニング: E A D G B e (低→高)</p>
+
+  <div class="note-grid" id="noteGrid"></div>
+  <div class="quality-grid" id="qualityGrid"></div>
+
+  <div class="card" id="card">
+    <p class="placeholder">音名とコードタイプを選択してください</p>
+  </div>
+
+  <script>
+  // ── Constants ──────────────────────────────────────────────────────────────
+  const NOTES    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const N_LABELS = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+
+  const QUALITIES = ['maj','m','7','m7','maj7','aug','dim'];
+  const Q_LABELS  = {maj:'Major', m:'Minor', '7':'7th', m7:'m7', maj7:'maj7', aug:'aug', dim:'dim'};
+
+  const STRING_NAMES = ['E','A','D','G','B','e'];
+
+  // Intervals for each quality (semitones from root)
+  const INTERVALS = {
+    maj:  [0,4,7],
+    m:    [0,3,7],
+    '7':  [0,4,7,10],
+    m7:   [0,3,7,10],
+    maj7: [0,4,7,11],
+    aug:  [0,4,8],
+    dim:  [0,3,6],
+  };
+
+  // ── Chord note label builder ────────────────────────────────────────────────
+  function chordNotes(note, quality) {
+    const root = NOTES.indexOf(note);
+    return INTERVALS[quality].map(i => N_LABELS[(root + i) % 12]).join(' · ');
+  }
+
+  function chordLabel(note, quality) {
+    const n = N_LABELS[NOTES.indexOf(note)];
+    if (quality === 'maj') return n;
+    if (quality === 'm')   return n + 'm';
+    return n + quality;
+  }
+
+  // ── Moveable shape templates ────────────────────────────────────────────────
+  // Offsets from root fret; -1 = mute string
+  // E-shape: root on string 0 (low E)
+  const E_SHAPE = {
+    maj:  { off:[0,2,2,1,0,0], f:[1,3,4,2,1,1], barre:true  },
+    m:    { off:[0,2,2,0,0,0], f:[1,3,4,0,0,0], barre:true  },
+    '7':  { off:[0,2,0,1,0,0], f:[1,3,0,2,0,0], barre:true  },
+    m7:   { off:[0,2,0,0,0,0], f:[1,3,0,0,0,0], barre:true  },
+    maj7: { off:[0,2,1,1,0,0], f:[1,3,2,2,0,0], barre:true  },
+    aug:  { off:[0,3,2,1,1,0], f:[0,4,3,2,2,0], barre:false },
+    dim:  { off:[0,1,2,0,-1,-1], f:[0,1,2,0,0,0], barre:false },
+  };
+
+  // A-shape: root on string 1 (A); string 0 always muted
+  const A_SHAPE = {
+    maj:  { off:[-1,0,2,2,2,0], f:[0,1,2,3,4,1], barre:true,  bf:1, bt:5 },
+    m:    { off:[-1,0,2,2,1,0], f:[0,1,3,4,2,1], barre:true,  bf:1, bt:5 },
+    '7':  { off:[-1,0,2,0,2,0], f:[0,1,2,0,3,0], barre:true,  bf:1, bt:5 },
+    m7:   { off:[-1,0,2,0,1,0], f:[0,1,3,0,2,0], barre:false },
+    maj7: { off:[-1,0,2,1,2,0], f:[0,1,3,2,4,0], barre:false },
+    aug:  { off:[-1,0,3,2,2,1], f:[0,1,4,3,2,1], barre:false },
+    dim:  { off:[-1,0,1,2,1,-1], f:[0,1,2,3,2,0], barre:false },
+  };
+
+  // Root fret of each note on each string type
+  const E_ROOT = {C:8,'C#':9,D:10,'D#':11,E:0,F:1,'F#':2,G:3,'G#':4,A:5,'A#':6,B:7};
+  const A_ROOT = {C:3,'C#':4,D:5,'D#':6,E:7,F:8,'F#':9,G:10,'G#':11,A:0,'A#':1,B:2};
+
+  // ── Open chord overrides ────────────────────────────────────────────────────
+  const OPEN = {
+    // Major open positions
+    'C-maj':  { strings:[-1,3,2,0,1,0],  fingers:[0,3,2,0,1,0], baseFret:1 },
+    'D-maj':  { strings:[-1,-1,0,2,3,2], fingers:[0,0,0,1,3,2], baseFret:1 },
+    'G-maj':  { strings:[3,2,0,0,0,3],   fingers:[2,1,0,0,0,3], baseFret:1 },
+    'A-maj':  { strings:[-1,0,2,2,2,0],  fingers:[0,0,1,2,3,0], baseFret:1 },
+    // Minor open
+    'A-m':    { strings:[-1,0,2,2,1,0],  fingers:[0,0,2,3,1,0], baseFret:1 },
+    'D-m':    { strings:[-1,-1,0,2,3,1], fingers:[0,0,0,2,3,1], baseFret:1 },
+    // 7th open
+    'G-7':    { strings:[3,2,0,0,0,1],   fingers:[3,2,0,0,0,1], baseFret:1 },
+    'A-7':    { strings:[-1,0,2,0,2,0],  fingers:[0,0,2,0,3,0], baseFret:1 },
+    'D-7':    { strings:[-1,-1,0,2,1,2], fingers:[0,0,0,2,1,3], baseFret:1 },
+    'C-7':    { strings:[-1,3,2,3,1,0],  fingers:[0,3,2,4,1,0], baseFret:1 },
+    // m7 open
+    'A-m7':   { strings:[-1,0,2,0,1,0],  fingers:[0,0,2,0,1,0], baseFret:1 },
+    'D-m7':   { strings:[-1,-1,0,2,1,1], fingers:[0,0,0,2,1,1], baseFret:1 },
+    // maj7 open
+    'A-maj7': { strings:[-1,0,2,1,2,0],  fingers:[0,0,3,1,4,0], baseFret:1 },
+    'C-maj7': { strings:[-1,3,2,0,0,0],  fingers:[0,3,2,0,0,0], baseFret:1 },
+    // aug open
+    'A-aug':  { strings:[-1,0,3,2,2,1],  fingers:[0,0,4,2,3,1], baseFret:1 },
+    // dim open
+    'A-dim':  { strings:[-1,0,1,2,1,-1], fingers:[0,0,1,2,1,0], baseFret:1 },
+    'D-dim':  { strings:[-1,-1,0,1,3,1], fingers:[0,0,0,1,3,1], baseFret:1 },
+  };
+
+  // ── Chord builder ───────────────────────────────────────────────────────────
+  function buildChord(note, quality) {
+    const key = `${note}-${quality}`;
+    if (OPEN[key]) return OPEN[key];
+
+    const eRoot = E_ROOT[note];
+
+    // Use E-shape when root fret ≤ 7 (keeps chord in a playable range)
+    if (eRoot <= 7) {
+      const sh = E_SHAPE[quality];
+      const strings = sh.off.map(o => o === -1 ? -1 : eRoot + o);
+      const baseFret = eRoot === 0 ? 1 : eRoot;
+      const barre = (sh.barre && eRoot > 0) ? { fret: eRoot, from: 0, to: 5 } : null;
+      return { strings, fingers: sh.f, baseFret, barre };
+    }
+
+    // Otherwise use A-shape
+    const aRoot = A_ROOT[note];
+    const sh = A_SHAPE[quality];
+    const strings = sh.off.map(o => o === -1 ? -1 : aRoot + o);
+    const baseFret = aRoot === 0 ? 1 : aRoot;
+    const barre = (sh.barre && aRoot > 0) ? { fret: aRoot, from: sh.bf ?? 1, to: sh.bt ?? 5 } : null;
+    return { strings, fingers: sh.f, baseFret, barre };
+  }
+
+  // ── SVG diagram builder ─────────────────────────────────────────────────────
+  function buildSVG(chord, ariaLabel) {
+    const NS = 6, NF = 4;
+    const SP = 28, FP = 46, LM = 34, TM = 52;
+    const W = LM * 2 + (NS - 1) * SP;
+    const H = TM + NF * FP + 28;
+    const sx = Array.from({length: NS}, (_, i) => LM + i * SP);
+    const fy = Array.from({length: NF + 1}, (_, i) => TM + i * FP);
+    const p = [];
+
+    // Fretboard
+    p.push(`<rect x="${sx[0]-1}" y="${fy[0]}" width="${sx[NS-1]-sx[0]+2}" height="${fy[NF]-fy[0]}" fill="#fdf6ec" rx="2"/>`);
+
+    // Nut / top line
+    if (chord.baseFret === 1) {
+      p.push(`<rect x="${sx[0]-2}" y="${fy[0]-5}" width="${sx[NS-1]-sx[0]+4}" height="9" rx="4" fill="#5a4a3a"/>`);
+    } else {
+      p.push(`<line x1="${sx[0]}" y1="${fy[0]}" x2="${sx[NS-1]}" y2="${fy[0]}" stroke="#bbb" stroke-width="2"/>`);
+      p.push(`<text x="${sx[NS-1]+10}" y="${fy[0]+5}" fill="#888" font-size="13" font-family="sans-serif">${chord.baseFret}fr</text>`);
+    }
+
+    // Fret lines
+    for (let f = 1; f <= NF; f++)
+      p.push(`<line x1="${sx[0]}" y1="${fy[f]}" x2="${sx[NS-1]}" y2="${fy[f]}" stroke="#d8c8a8" stroke-width="1.5"/>`);
+
+    // String lines
+    const strThick  = [2.2, 1.9, 1.6, 1.3, 1.1, 1.0];
+    const strColors = ['#8a7060','#9a8070','#9a8070','#9a8070','#aaa090','#aaa090'];
+    for (let s = 0; s < NS; s++)
+      p.push(`<line x1="${sx[s]}" y1="${fy[0]}" x2="${sx[s]}" y2="${fy[NF]}" stroke="${strColors[s]}" stroke-width="${strThick[s]}"/>`);
+
+    // Mute / Open markers
+    for (let s = 0; s < NS; s++) {
+      const fret = chord.strings[s];
+      const cx = sx[s], cy = TM - 20;
+      if (fret === -1) {
+        p.push(`<line x1="${cx-7}" y1="${cy-7}" x2="${cx+7}" y2="${cy+7}" stroke="#d0453a" stroke-width="2.5" stroke-linecap="round"/>`);
+        p.push(`<line x1="${cx+7}" y1="${cy-7}" x2="${cx-7}" y2="${cy+7}" stroke="#d0453a" stroke-width="2.5" stroke-linecap="round"/>`);
+      } else if (fret === 0) {
+        p.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="#3a9e5a" stroke-width="2.5"/>`);
+      }
+    }
+
+    // Barre bar
+    if (chord.barre) {
+      const b = chord.barre;
+      const y  = TM + (b.fret - chord.baseFret) * FP + FP / 2;
+      const x1 = sx[b.from] - 14, x2 = sx[b.to] + 14;
+      p.push(`<rect x="${x1}" y="${y-12}" width="${x2-x1}" height="24" rx="12" fill="#4a7fd4"/>`);
+      p.push(`<text x="${(sx[b.from]+sx[b.to])/2}" y="${y+5}" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="sans-serif">1</text>`);
+    }
+
+    // Finger dots
+    for (let s = 0; s < NS; s++) {
+      const fret = chord.strings[s];
+      if (fret <= 0) continue;
+      if (chord.barre && fret === chord.barre.fret && s >= chord.barre.from && s <= chord.barre.to) continue;
+      const y = TM + (fret - chord.baseFret) * FP + FP / 2;
+      p.push(`<circle cx="${sx[s]}" cy="${y}" r="13" fill="#c0392b"/>`);
+      if (chord.fingers[s])
+        p.push(`<text x="${sx[s]}" y="${y+5}" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="sans-serif">${chord.fingers[s]}</text>`);
+    }
+
+    // String labels
+    for (let s = 0; s < NS; s++)
+      p.push(`<text x="${sx[s]}" y="${H-4}" text-anchor="middle" fill="#aaa" font-size="12" font-family="sans-serif">${STRING_NAMES[s]}</text>`);
+
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${ariaLabel}">${p.join('')}</svg>`;
+  }
+
+  // ── State & render ──────────────────────────────────────────────────────────
+  let selNote = 'C', selQuality = 'maj';
+
+  function render() {
+    const chord  = buildChord(selNote, selQuality);
+    const label  = chordLabel(selNote, selQuality);
+    const notes  = chordNotes(selNote, selQuality);
+    const hasBarre = !!chord.barre;
+
+    document.getElementById('card').innerHTML = `
+      <div class="chord-name">${label}</div>
+      <div class="chord-notes">${notes}</div>
+      ${buildSVG(chord, label + ' コードダイアグラム')}
+      <p class="fingering-note">${hasBarre
+        ? '青バー = 人差し指でセーハ ／ 赤丸 = 各指の押弦位置'
+        : '赤丸の数字 = 指番号 (1=人差指 2=中指 3=薬指 4=小指)'}</p>
+    `;
+  }
+
+  function refreshButtons() {
+    document.querySelectorAll('.note-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.note === selNote));
+    document.querySelectorAll('.quality-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.q === selQuality));
+  }
+
+  // ── Build UI ────────────────────────────────────────────────────────────────
+  const noteGrid    = document.getElementById('noteGrid');
+  const qualityGrid = document.getElementById('qualityGrid');
+
+  NOTES.forEach((n, i) => {
+    const btn = document.createElement('button');
+    btn.className   = 'note-btn';
+    btn.dataset.note = n;
+    btn.innerHTML   = N_LABELS[i].replace('♯', '<span style="font-size:0.8em">♯</span>');
+    btn.addEventListener('click', () => { selNote = n; refreshButtons(); render(); });
+    noteGrid.appendChild(btn);
+  });
+
+  QUALITIES.forEach(q => {
+    const btn = document.createElement('button');
+    btn.className  = 'quality-btn';
+    btn.dataset.q  = q;
+    btn.textContent = Q_LABELS[q];
+    btn.addEventListener('click', () => { selQuality = q; refreshButtons(); render(); });
+    qualityGrid.appendChild(btn);
+  });
+
+  // Initial display
+  refreshButtons();
+  render();
+  </script>
+</body>
+</html>
