@@ -150,6 +150,26 @@
       color: #bbb;
       letter-spacing: 0.03em;
     }
+
+    .play-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #4a7fd4;
+      border: none;
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 99px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.1s, transform 0.1s;
+    }
+    .play-btn:hover  { background: #3a6fc4; transform: scale(1.04); }
+    .play-btn:active { transform: scale(0.96); }
+    .play-btn.playing { background: #e07b3a; }
   </style>
 </head>
 <body>
@@ -348,13 +368,84 @@
     return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${ariaLabel}">${p.join('')}</svg>`;
   }
 
+  // ── Audio synthesis ─────────────────────────────────────────────────────────
+  // Open string frequencies: low E, A, D, G, B, high e
+  const OPEN_FREQ = [82.407, 110.000, 146.832, 195.998, 246.942, 329.628];
+
+  let audioCtx = null;
+
+  function getAudioCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  // Synthesize a plucked string tone using sine harmonics + fast decay
+  function synthNote(ctx, freq, startTime, vol) {
+    const master = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = freq * 6;
+    filter.Q.value = 0.5;
+    master.connect(filter);
+    filter.connect(ctx.destination);
+
+    // Fundamental + harmonics
+    [[1, 0.55], [2, 0.25], [3, 0.12], [4, 0.05], [5, 0.03]].forEach(([h, amp]) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq * h;
+      osc.connect(gain);
+      gain.connect(master);
+      gain.gain.setValueAtTime(amp, startTime);
+      // Higher harmonics decay faster (like a real string)
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 2.0 / h);
+      osc.start(startTime);
+      osc.stop(startTime + 2.2);
+    });
+
+    master.gain.setValueAtTime(vol, startTime);
+    master.gain.exponentialRampToValueAtTime(0.0001, startTime + 2.2);
+  }
+
+  function playChordAudio(chord, btn) {
+    const ctx = getAudioCtx();
+
+    // Collect active string frequencies (skip muted strings)
+    const freqs = chord.strings
+      .map((fret, i) => fret >= 0 ? OPEN_FREQ[i] * Math.pow(2, fret / 12) : null)
+      .filter(f => f !== null);
+
+    if (freqs.length === 0) return;
+
+    const vol       = 0.38 / freqs.length;
+    const arpDelay  = 0.10;   // seconds between each arpeggio note
+    const chordGap  = 0.15;   // pause before chord strum
+    const now       = ctx.currentTime + 0.05;
+
+    // 1. Arpeggio: low → high
+    freqs.forEach((freq, i) => synthNote(ctx, freq, now + i * arpDelay, vol * 1.2));
+
+    // 2. Chord: all strings together
+    const chordStart = now + freqs.length * arpDelay + chordGap;
+    freqs.forEach(freq => synthNote(ctx, freq, chordStart, vol));
+
+    // Visual feedback on the button
+    if (btn) {
+      btn.classList.add('playing');
+      const totalMs = (freqs.length * arpDelay + chordGap + 0.3) * 1000;
+      setTimeout(() => btn.classList.remove('playing'), totalMs);
+    }
+  }
+
   // ── State & render ──────────────────────────────────────────────────────────
   let selNote = 'C', selQuality = 'maj';
 
-  function render() {
-    const chord  = buildChord(selNote, selQuality);
-    const label  = chordLabel(selNote, selQuality);
-    const notes  = chordNotes(selNote, selQuality);
+  function render(autoPlay = false) {
+    const chord    = buildChord(selNote, selQuality);
+    const label    = chordLabel(selNote, selQuality);
+    const notes    = chordNotes(selNote, selQuality);
     const hasBarre = !!chord.barre;
 
     document.getElementById('card').innerHTML = `
@@ -364,7 +455,14 @@
       <p class="fingering-note">${hasBarre
         ? '青バー = 人差し指でセーハ ／ 赤丸 = 各指の押弦位置'
         : '赤丸の数字 = 指番号 (1=人差指 2=中指 3=薬指 4=小指)'}</p>
+      <button class="play-btn" id="playBtn">&#9654; 再生</button>
     `;
+
+    document.getElementById('playBtn').addEventListener('click', (e) => {
+      playChordAudio(chord, e.currentTarget);
+    });
+
+    if (autoPlay) playChordAudio(chord, document.getElementById('playBtn'));
   }
 
   function refreshButtons() {
@@ -383,7 +481,7 @@
     btn.className   = 'note-btn';
     btn.dataset.note = n;
     btn.innerHTML   = N_LABELS[i].replace('♯', '<span style="font-size:0.8em">♯</span>');
-    btn.addEventListener('click', () => { selNote = n; refreshButtons(); render(); });
+    btn.addEventListener('click', () => { selNote = n; refreshButtons(); render(true); });
     noteGrid.appendChild(btn);
   });
 
@@ -392,13 +490,13 @@
     btn.className  = 'quality-btn';
     btn.dataset.q  = q;
     btn.textContent = Q_LABELS[q];
-    btn.addEventListener('click', () => { selQuality = q; refreshButtons(); render(); });
+    btn.addEventListener('click', () => { selQuality = q; refreshButtons(); render(true); });
     qualityGrid.appendChild(btn);
   });
 
-  // Initial display
+  // Initial display (no auto-play on load)
   refreshButtons();
-  render();
+  render(false);
   </script>
 </body>
 </html>
