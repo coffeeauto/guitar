@@ -571,7 +571,7 @@
   // Called by SVG onclick (must be global)
   function cofClick(note, type) {
     selNote = note;
-    if (type === 'minor') selQuality = 'm';
+    selQuality = type === 'minor' ? 'm' : 'maj';
     refreshButtons();
     updateCircle();
     render(true);
